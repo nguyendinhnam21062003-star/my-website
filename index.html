@@ -1,0 +1,209 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Danh sách sách</title>
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 24px; }
+    h1 { margin-bottom: 12px; }
+    .search { margin: 12px 0 16px; width: 100%; max-width: 520px; padding: 10px 12px; border: 1px solid #ddd; border-radius: 8px; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { padding: 10px; border-bottom: 1px solid #eee; vertical-align: top; }
+    th { text-align: left; background: #fafafa; }
+    .muted { color: #666; font-size: 12px; }
+    .thumbs { display: flex; flex-wrap: wrap; gap: 8px; }
+    .thumbs a { display: inline-block; border: 1px solid #eee; border-radius: 6px; overflow: hidden; }
+    .thumbs img { display: block; width: 96px; height: 72px; object-fit: cover; }
+  </style>
+</head>
+<body>
+  <h1>Danh sách sách</h1>
+  <input class="search" id="q" placeholder="Tìm theo tên/mô tả/liên hệ..." />
+
+  <table id="tbl">
+    <thead>
+      <tr>
+        <th>Tên sách</th>
+        <th>Mô tả</th>
+        <th>Liên hệ</th>
+        <th>Hình ảnh</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+
+  <script>
+    const CSV_URL = "PASTE_YOUR_PUBLISHED_CSV_URL_HERE"; // dán link publish CSV vào đây
+    const tbody = document.querySelector("#tbl tbody");
+    const q = document.getElementById("q");
+    let dataRows = []; // mảng các object {ten, moTa, lienHe, hinhAnh, ...}
+
+    // --- Fetch & render ---
+    fetch(CSV_URL)
+      .then(r => r.text())
+      .then(text => {
+        const rows = parseCSV(text); // [ [col1,col2,...], ... ]
+        if (!rows.length) return;
+
+        const header = rows[0].map(s => normalizeHeader(s));
+        const body = rows.slice(1);
+
+        // Tìm index theo tên cột (linh hoạt theo tiêu đề tiếng Việt)
+        const idx = {
+          ten: findCol(header, ["tên sách", "tên tài liệu"]),
+          moTa: findCol(header, ["mô tả", "mô tả:", "mô tả: giá, tình trạng", "mota"]),
+          lienHe: findCol(header, ["thông tin liên hệ", "liên hệ", "contact"]),
+          hinhAnh: findCol(header, ["hình ảnh tài liệu", "hình ảnh", "ảnh", "image"]),
+          dauThoiGian: findCol(header, ["dấu thời gian", "timestamp"])
+        };
+
+        dataRows = body.map(row => ({
+          ten: getCell(row, idx.ten),
+          moTa: getCell(row, idx.moTa),
+          lienHe: getCell(row, idx.lienHe),
+          hinhAnh: getCell(row, idx.hinhAnh),
+          dauThoiGian: getCell(row, idx.dauThoiGian)
+        }));
+
+        render(dataRows);
+      })
+      .catch(err => {
+        console.error(err);
+        tbody.innerHTML = `<tr><td colspan="4">Không tải được dữ liệu CSV.</td></tr>`;
+      });
+
+    // --- CSV parser chuẩn RFC4180 (xử lý dấu phẩy, xuống dòng, dấu ngoặc kép) ---
+    function parseCSV(text) {
+      const rows = [];
+      let row = [];
+      let cur = '';
+      let inQuotes = false;
+
+      for (let i = 0; i < text.length; i++) {
+        const c = text[i];
+        const next = text[i + 1];
+
+        if (inQuotes) {
+          if (c === '"') {
+            if (next === '"') { // escaped quote ""
+              cur += '"';
+              i++;
+            } else {
+              inQuotes = false;
+            }
+          } else {
+            cur += c;
+          }
+        } else {
+          if (c === '"') {
+            inQuotes = true;
+          } else if (c === ',') {
+            row.push(cur);
+            cur = '';
+          } else if (c === '\r') {
+            // ignore \r, handle on \n
+          } else if (c === '\n') {
+            row.push(cur);
+            rows.push(row);
+            row = [];
+            cur = '';
+          } else {
+            cur += c;
+          }
+        }
+      }
+      // push last cell
+      row.push(cur);
+      rows.push(row);
+
+      // loại bỏ dòng rỗng cuối (nếu có)
+      return rows.filter(r => r.some(cell => (cell || '').trim() !== ''));
+    }
+
+    // --- Helpers ---
+    function normalizeHeader(s) {
+      return (s || '')
+        .toLowerCase()
+        .normalize('NFD').replace(/[\u0300-\u036f]/g, '') // bỏ dấu tiếng Việt
+        .replace(/\s+/g, ' ')
+        .trim();
+    }
+    function findCol(header, candidates) {
+      const normCandidates = candidates.map(normalizeHeader);
+      for (let i = 0; i < header.length; i++) {
+        for (const c of normCandidates) {
+          if (header[i].startsWith(c)) return i; // startsWith để bắt các tiêu đề dài
+        }
+      }
+      return -1;
+    }
+    function getCell(row, idx) {
+      return idx >= 0 && idx < row.length ? row[idx] : '';
+    }
+
+    function render(rows) {
+      const term = (q.value || "").toLowerCase().trim();
+      tbody.innerHTML = "";
+
+      rows
+        .filter(r => (r.ten + ' ' + r.moTa + ' ' + r.lienHe).toLowerCase().includes(term))
+        .forEach(r => {
+          const tr = document.createElement("tr");
+          tr.innerHTML = `
+            <td><strong>${escapeHTML(r.ten)}</strong><div class="muted">${escapeHTML(r.dauThoiGian)}</div></td>
+            <td>${nl2br(escapeHTML(r.moTa))}</td>
+            <td>${formatContact(r.lienHe)}</td>
+            <td>${formatImages(r.hinhAnh)}</td>
+          `;
+          tbody.appendChild(tr);
+        });
+
+      if (!tbody.children.length) {
+        tbody.innerHTML = `<tr><td colspan="4">Không có kết quả.</td></tr>`;
+      }
+    }
+
+    q.addEventListener("input", () => render(dataRows));
+
+    // --- Formatters ---
+    function escapeHTML(s) {
+      return (s || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    }
+    function nl2br(s) {
+      return s.replace(/\r?\n/g, "<br>");
+    }
+    function formatContact(s) {
+      const raw = s || '';
+      const email = raw.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i);
+      const phone = raw.match(/(\+?\d[\d\s().-]{6,}\d)/);
+      const parts = [];
+      if (email) parts.push(`<a href="mailto:${email[0]}">${escapeHTML(email[0])}</a>`);
+      if (phone) parts.push(`<a href="tel:${phone[0].replace(/[^\d+]/g,'')}">${escapeHTML(phone[0])}</a>`);
+      if (!parts.length) return escapeHTML(raw);
+      // nếu còn thông tin khác, thêm dưới
+      const extra = raw.replace(email?.[0] || '','').replace(phone?.[0] || '','').trim();
+      return parts.join(' · ') + (extra ? `<div class="muted">${escapeHTML(extra)}</div>` : '');
+    }
+    function extractLinks(s) {
+      return (s || '').match(/https?:\/\/\S+/g) || [];
+    }
+    function toThumbnail(url) {
+      // Nếu là link Drive xem trước (uc?export=download hoặc open?id=), không chắc hiển thị ảnh được.
+      // Ta fallback: hiện <a> bao quanh <img>; nếu load thất bại, người dùng vẫn mở link được.
+      // Có thể custom thêm chuyển đổi link Drive sang thumbnail nếu cần.
+      return `<a href="${escapeHTML(url)}" target="_blank" rel="noopener" title="Mở ảnh">
+                <img src="${escapeHTML(url)}" alt="ảnh"/>
+              </a>`;
+    }
+    function formatImages(s) {
+      const links = extractLinks(s);
+      if (!links.length) return '<span class="muted">—</span>';
+      // Nếu nhiều link, hiển thị gallery nhỏ
+      const thumbs = links.slice(0, 6).map(toThumbnail).join('');
+      const more = links.length > 6 ? `<div class="muted">+${links.length - 6} ảnh khác</div>` : '';
+      return `<div class="thumbs">${thumbs}</div>${more}`;
+    }
+  </script>
+</body>
+</html>
