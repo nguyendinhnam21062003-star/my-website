@@ -2,208 +2,205 @@
 <html lang="vi">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Danh sách sách</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Danh sách tài liệu</title>
   <style>
-    body { font-family: system-ui, sans-serif; margin: 24px; }
-    h1 { margin-bottom: 12px; }
-    .search { margin: 12px 0 16px; width: 100%; max-width: 520px; padding: 10px 12px; border: 1px solid #ddd; border-radius: 8px; }
-    table { width: 100%; border-collapse: collapse; }
-    th, td { padding: 10px; border-bottom: 1px solid #eee; vertical-align: top; }
-    th { text-align: left; background: #fafafa; }
-    .muted { color: #666; font-size: 12px; }
-    .thumbs { display: flex; flex-wrap: wrap; gap: 8px; }
-    .thumbs a { display: inline-block; border: 1px solid #eee; border-radius: 6px; overflow: hidden; }
-    .thumbs img { display: block; width: 96px; height: 72px; object-fit: cover; }
+    :root {
+      --bd: #e5e7eb;
+      --muted: #6b7280;
+      --chip: #f3f4f6;
+      --hl-subject-bg: #fff7d6;
+      --hl-price-bg: #e8fff0;
+    }
+    * {
+      box-sizing: border-box;
+    }
+    body {
+      font-family: system-ui, sans-serif;
+      margin: 24px;
+      background: #fff;
+      padding-bottom: 40px;
+    }
+    h1 {
+      margin: 0 0 12px;
+      font-size: 20px;
+    }
+    .search-wrap {
+      display: grid;
+      gap: 10px;
+      grid-template-columns: 1fr 1fr;
+      max-width: 880px;
+      margin: 12px 0 16px;
+    }
+    .search {
+      width: 100%;
+      padding: 10px 12px;
+      border: 1px solid var(--bd);
+      border-radius: 10px;
+    }
+    @media (max-width: 720px) {
+      .search-wrap {
+        grid-template-columns: 1fr;
+      }
+    }
+    .cards {
+      display: grid;
+      gap: 16px;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    }
+    .card {
+      border: 1px solid var(--bd);
+      border-radius: 14px;
+      background: #fff;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+      padding: 14px;
+      font-size: 14px;
+    }
+    .title {
+      font-weight: 700;
+      font-size: 16px;
+      margin-bottom: 10px;
+      line-height: 1.4;
+    }
+    .row-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px 12px;
+      margin-bottom: 6px;
+    }
+    .label-inline {
+      color: var(--muted);
+      white-space: nowrap;
+    }
+    .hl-subject {
+      background: var(--hl-subject-bg);
+      border-radius: 6px;
+      padding: 2px 6px;
+      font-weight: 600;
+    }
+    .hl-price {
+      background: var(--hl-price-bg);
+      border-radius: 6px;
+      padding: 2px 6px;
+      font-weight: 700;
+    }
+    .btn-view {
+      font-size: 14px;
+      color: #2563eb;
+      text-decoration: none;
+    }
+    @media (max-width: 480px) {
+      .row-grid {
+        grid-template-columns: 1fr;
+      }
+    }
   </style>
 </head>
 <body>
-  <h1>Danh sách sách</h1>
-  <input class="search" id="q" placeholder="Tìm theo tên/mô tả/liên hệ..." />
-
-  <table id="tbl">
-    <thead>
-      <tr>
-        <th>Tên sách</th>
-        <th>Mô tả</th>
-        <th>Liên hệ</th>
-        <th>Hình ảnh</th>
-      </tr>
-    </thead>
-    <tbody></tbody>
-  </table>
-
+  <h1>Danh sách tài liệu</h1>
+  <div class="search-wrap">
+    <input class="search" id="qName" placeholder="Tìm theo tên tài liệu..." />
+    <input class="search" id="qSubject" placeholder="Tìm theo môn học..." />
+  </div>
+  <div id="cards" class="cards" aria-live="polite"></div>
   <script>
-    const CSV_URL = "PASTE_YOUR_PUBLISHED_CSV_URL_HERE"; // dán link publish CSV vào đây
-    const tbody = document.querySelector("#tbl tbody");
-    const q = document.getElementById("q");
-    let dataRows = []; // mảng các object {ten, moTa, lienHe, hinhAnh, ...}
-
-    // --- Fetch & render ---
+    const CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRL7VwTAlQldOBxOR3arotJCVv2fWLmoB3Hr6WslMdS2z_8iHM5jBnp-nK0Wvf5Ko90TLCuxgxoLihT/pub?gid=759690707&single=true&output=csv";
+    const cards = document.getElementById("cards");
+    const qName = document.getElementById("qName");
+    const qSubject = document.getElementById("qSubject");
+    let dataRows = [];
     fetch(CSV_URL)
       .then(r => r.text())
       .then(text => {
-        const rows = parseCSV(text); // [ [col1,col2,...], ... ]
+        const rows = parseCSV(text);
         if (!rows.length) return;
-
-        const header = rows[0].map(s => normalizeHeader(s));
         const body = rows.slice(1);
-
-        // Tìm index theo tên cột (linh hoạt theo tiêu đề tiếng Việt)
-        const idx = {
-          ten: findCol(header, ["tên sách", "tên tài liệu"]),
-          moTa: findCol(header, ["mô tả", "mô tả:", "mô tả: giá, tình trạng", "mota"]),
-          lienHe: findCol(header, ["thông tin liên hệ", "liên hệ", "contact"]),
-          hinhAnh: findCol(header, ["hình ảnh tài liệu", "hình ảnh", "ảnh", "image"]),
-          dauThoiGian: findCol(header, ["dấu thời gian", "timestamp"])
-        };
-
+        const C=2, D=3, E=4, F=5, G=6, H=7;
         dataRows = body.map(row => ({
-          ten: getCell(row, idx.ten),
-          moTa: getCell(row, idx.moTa),
-          lienHe: getCell(row, idx.lienHe),
-          hinhAnh: getCell(row, idx.hinhAnh),
-          dauThoiGian: getCell(row, idx.dauThoiGian)
-        }));
-
+          ten: getCell(row, C),
+          monHoc: getCell(row, D),
+          lienHe: getCell(row, E),
+          giaBan: getCell(row, F),
+          ghiChu: getCell(row, G),
+          hinhAnh: getCell(row, H)
+        })).filter(r => (r.ten||'').trim() !== '');
         render(dataRows);
       })
       .catch(err => {
         console.error(err);
-        tbody.innerHTML = `<tr><td colspan="4">Không tải được dữ liệu CSV.</td></tr>`;
+        cards.innerHTML = `<div class="muted">Không tải được dữ liệu CSV.</div>`;
       });
-
-    // --- CSV parser chuẩn RFC4180 (xử lý dấu phẩy, xuống dòng, dấu ngoặc kép) ---
-    function parseCSV(text) {
-      const rows = [];
-      let row = [];
-      let cur = '';
-      let inQuotes = false;
-
-      for (let i = 0; i < text.length; i++) {
-        const c = text[i];
-        const next = text[i + 1];
-
-        if (inQuotes) {
-          if (c === '"') {
-            if (next === '"') { // escaped quote ""
-              cur += '"';
-              i++;
-            } else {
-              inQuotes = false;
-            }
-          } else {
-            cur += c;
-          }
-        } else {
-          if (c === '"') {
-            inQuotes = true;
-          } else if (c === ',') {
-            row.push(cur);
-            cur = '';
-          } else if (c === '\r') {
-            // ignore \r, handle on \n
-          } else if (c === '\n') {
-            row.push(cur);
-            rows.push(row);
-            row = [];
-            cur = '';
-          } else {
-            cur += c;
-          }
+    function parseCSV(text){
+      const rows=[]; let row=[]; let cur=''; let inQ=false;
+      for(let i=0;i<text.length;i++){
+        const c=text[i], n=text[i+1];
+        if(inQ){
+          if(c==='"'){ if(n==='"'){cur+='"'; i++;} else inQ=false; }
+          else cur+=c;
+        }else{
+          if(c==='"') inQ=true;
+          else if(c===','){ row.push(cur); cur=''; }
+          else if(c==='\r'){}
+          else if(c==='\n'){ row.push(cur); rows.push(row); row=[]; cur=''; }
+          else cur+=c;
         }
       }
-      // push last cell
-      row.push(cur);
-      rows.push(row);
-
-      // loại bỏ dòng rỗng cuối (nếu có)
-      return rows.filter(r => r.some(cell => (cell || '').trim() !== ''));
+      row.push(cur); rows.push(row);
+      return rows.filter(r => r.some(cell => (cell||'').trim()!==''));
     }
-
-    // --- Helpers ---
-    function normalizeHeader(s) {
-      return (s || '')
-        .toLowerCase()
-        .normalize('NFD').replace(/[\u0300-\u036f]/g, '') // bỏ dấu tiếng Việt
-        .replace(/\s+/g, ' ')
-        .trim();
+    const getCell=(r,i)=> (i>=0 && i<r.length ? r[i] : '');
+    function escapeHTML(s){return (s||'').replace(/[&<>"']/g, m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'}[m]))}
+    function nl2br(s){return (s||'').replace(/\r?\n/g,'<br>')}
+    function extractLinks(s){ return (s||'').match(/https?:\/\/\S+/g) || [] }
+    function formatContact(s){
+      const raw=s||'';
+      const email=raw.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i);
+      const phone=raw.match(/(\+?\d[\d\s().-]{6,}\d)/);
+      const parts=[];
+      if(email) parts.push(`<a href="mailto:${email[0]}">${escapeHTML(email[0])}</a>`);
+      if(phone) parts.push(`<a href="tel:${phone[0].replace(/[^\d+]/g,'')}">${escapeHTML(phone[0])}</a>`);
+      if(!parts.length) return escapeHTML(raw);
+      const extra=raw.replace(email?.[0]||'','').replace(phone?.[0]||'','').trim();
+      return parts.join(' · ') + (extra?` <span class="muted">${escapeHTML(extra)}</span>`:'');
     }
-    function findCol(header, candidates) {
-      const normCandidates = candidates.map(normalizeHeader);
-      for (let i = 0; i < header.length; i++) {
-        for (const c of normCandidates) {
-          if (header[i].startsWith(c)) return i; // startsWith để bắt các tiêu đề dài
-        }
+    function formatPrice(s){
+      const num=parseInt(String(s||'').replace(/[^\d]/g,''),10);
+      const out=Number.isFinite(num)? num.toLocaleString('vi-VN')+' ₫' : (s||'');
+      return `<span class="hl-price">${escapeHTML(out)}</span>`;
+    }
+    function render(rows){
+      const nameTerm=(qName.value||'').toLowerCase().trim();
+      const subjectTerm=(qSubject.value||'').toLowerCase().trim();
+      const filtered = rows.filter(r=>{
+        const okName=!nameTerm || (r.ten||'').toLowerCase().includes(nameTerm);
+        const okSubject=!subjectTerm || (r.monHoc||'').toLowerCase().includes(subjectTerm);
+        return okName && okSubject;
+      });
+      if(!filtered.length){
+        cards.innerHTML = `<div class="muted">Không có kết quả.</div>`;
+        return;
       }
-      return -1;
+      cards.innerHTML = filtered.map(r=>{
+        const links = extractLinks(r.hinhAnh);
+        const link = links[0] || "#";
+        return `
+          <article class="card">
+            <div class="title">${escapeHTML(r.ten)}</div>
+            <div class="row-grid">
+              <div><span class="label-inline">Môn học:</span> <span class="hl-subject">${escapeHTML(r.monHoc)}</span></div>
+              <div><span class="label-inline">Giá bán:</span> ${formatPrice(r.giaBan)}</div>
+              <div><span class="label-inline">Liên hệ:</span> ${formatContact(r.lienHe)}</div>
+              <div><a class="btn-view" href="${escapeHTML(link)}" target="_blank" rel="noopener">Xem hình ảnh &gt;</a></div>
+            </div>
+            ${r.ghiChu ? `<div class="row-grid"><div><span class="label-inline">Ghi chú:</span> ${nl2br(escapeHTML(r.ghiChu))}</div></div>`:''}
+          </article>
+        `;
+      }).join('');
     }
-    function getCell(row, idx) {
-      return idx >= 0 && idx < row.length ? row[idx] : '';
-    }
-
-    function render(rows) {
-      const term = (q.value || "").toLowerCase().trim();
-      tbody.innerHTML = "";
-
-      rows
-        .filter(r => (r.ten + ' ' + r.moTa + ' ' + r.lienHe).toLowerCase().includes(term))
-        .forEach(r => {
-          const tr = document.createElement("tr");
-          tr.innerHTML = `
-            <td><strong>${escapeHTML(r.ten)}</strong><div class="muted">${escapeHTML(r.dauThoiGian)}</div></td>
-            <td>${nl2br(escapeHTML(r.moTa))}</td>
-            <td>${formatContact(r.lienHe)}</td>
-            <td>${formatImages(r.hinhAnh)}</td>
-          `;
-          tbody.appendChild(tr);
-        });
-
-      if (!tbody.children.length) {
-        tbody.innerHTML = `<tr><td colspan="4">Không có kết quả.</td></tr>`;
-      }
-    }
-
-    q.addEventListener("input", () => render(dataRows));
-
-    // --- Formatters ---
-    function escapeHTML(s) {
-      return (s || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-    }
-    function nl2br(s) {
-      return s.replace(/\r?\n/g, "<br>");
-    }
-    function formatContact(s) {
-      const raw = s || '';
-      const email = raw.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i);
-      const phone = raw.match(/(\+?\d[\d\s().-]{6,}\d)/);
-      const parts = [];
-      if (email) parts.push(`<a href="mailto:${email[0]}">${escapeHTML(email[0])}</a>`);
-      if (phone) parts.push(`<a href="tel:${phone[0].replace(/[^\d+]/g,'')}">${escapeHTML(phone[0])}</a>`);
-      if (!parts.length) return escapeHTML(raw);
-      // nếu còn thông tin khác, thêm dưới
-      const extra = raw.replace(email?.[0] || '','').replace(phone?.[0] || '','').trim();
-      return parts.join(' · ') + (extra ? `<div class="muted">${escapeHTML(extra)}</div>` : '');
-    }
-    function extractLinks(s) {
-      return (s || '').match(/https?:\/\/\S+/g) || [];
-    }
-    function toThumbnail(url) {
-      // Nếu là link Drive xem trước (uc?export=download hoặc open?id=), không chắc hiển thị ảnh được.
-      // Ta fallback: hiện <a> bao quanh <img>; nếu load thất bại, người dùng vẫn mở link được.
-      // Có thể custom thêm chuyển đổi link Drive sang thumbnail nếu cần.
-      return `<a href="${escapeHTML(url)}" target="_blank" rel="noopener" title="Mở ảnh">
-                <img src="${escapeHTML(url)}" alt="ảnh"/>
-              </a>`;
-    }
-    function formatImages(s) {
-      const links = extractLinks(s);
-      if (!links.length) return '<span class="muted">—</span>';
-      // Nếu nhiều link, hiển thị gallery nhỏ
-      const thumbs = links.slice(0, 6).map(toThumbnail).join('');
-      const more = links.length > 6 ? `<div class="muted">+${links.length - 6} ảnh khác</div>` : '';
-      return `<div class="thumbs">${thumbs}</div>${more}`;
-    }
+    qName.addEventListener("input", ()=>render(dataRows));
+    qSubject.addEventListener("input", ()=>render(dataRows));
   </script>
 </body>
 </html>
