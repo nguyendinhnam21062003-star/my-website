@@ -4,47 +4,27 @@
     <meta charset="utf-8" />
     <title>Test Messenger Chat Plugin</title>
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <!-- Màu nhẹ để dễ nhìn nền -->
     <style>
-      :root {
-        --bg: #f7f7fb;
-        --card: #ffffff;
-        --text: #222;
-      }
       body {
         margin: 0;
-        font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Noto Sans, Ubuntu, Cantarell, Helvetica Neue, Arial;
-        background: var(--bg);
-        color: var(--text);
+        font-family: Arial, sans-serif;
+        background: #f7f7fb;
       }
       .container {
-        max-width: 900px;
+        max-width: 700px;
         margin: 40px auto;
-        background: var(--card);
-        border: 1px solid rgba(0,0,0,0.08);
-        border-radius: 16px;
+        background: #fff;
+        border-radius: 12px;
         padding: 24px;
-        box-shadow: 0 10px 30px rgba(0,0,0,0.06);
+        box-shadow: 0 6px 20px rgba(0,0,0,0.1);
       }
-      code, pre { background: #f3f4f6; padding: 2px 6px; border-radius: 6px; }
-      .hint { color: #666; font-size: 14px; }
-      .ok { display: inline-block; padding: 4px 10px; background: #e7f7ee; color: #0c6e3d; border-radius: 999px; font-size: 12px; }
     </style>
   </head>
 
   <body>
     <div class="container">
-      <h1>Test Facebook Messenger Customer Chat</h1>
-      <p>
-        ✅ Nếu bạn đã thêm <code>http://localhost:3000</code> (hoặc cổng bạn đang dùng) vào
-        <em>Whitelisted Domains</em> của Fanpage thì bong bóng chat sẽ hiện ở góc phải.
-      </p>
-      <ul>
-        <li>Thay <code>YOUR_PAGE_ID</code> ở dưới bằng <strong>ID Fanpage</strong> của bạn.</li>
-        <li>Chạy bằng server local (VD: <code>npx serve</code>, VS Code Live Server…).</li>
-        <li class="hint">Không hoạt động trên <code>https://jsfiddle.net/</code> hoặc mở trực tiếp <code>file://</code>.</li>
-      </ul>
-      <p class="ok">Trạng thái: Sẵn sàng test</p>
+      <h1>Test Facebook Messenger Chat</h1>
+      <p>Nếu bạn đã whitelist domain GitHub Pages này trong phần cài đặt Fanpage, bong bóng chat sẽ hiện ở góc phải.</p>
     </div>
 
     <!-- Messenger Plugin: root -->
@@ -54,24 +34,18 @@
     <div id="fb-customer-chat" class="fb-customerchat"></div>
 
     <script>
-      // GÁN PAGE_ID của bạn ở đây:
+      // Gắn Page ID của bạn
       var chatbox = document.getElementById('fb-customer-chat');
-      chatbox.setAttribute('page_id', 'YOUR_PAGE_ID'); // ← Thay bằng Page ID thật
-      chatbox.setAttribute('attribution', 'biz_inbox');
-
-      // Tuỳ chọn giao diện (không bắt buộc)
-      // chatbox.setAttribute('theme_color', '#ff6600');
-      // chatbox.setAttribute('greeting_dialog_display', 'show'); // 'hide' | 'fade'
-      // chatbox.setAttribute('logged_in_greeting', 'Xin chào! Mình có thể giúp gì?');
-      // chatbox.setAttribute('logged_out_greeting', 'Xin chào! Đăng nhập Facebook để chat nhanh hơn nhé!');
+      chatbox.setAttribute("page_id", "61554870864426");
+      chatbox.setAttribute("attribution", "biz_inbox");
     </script>
 
     <!-- FB SDK -->
     <script>
       window.fbAsyncInit = function() {
         FB.init({
-          xfbml: true,
-          version: 'v19.0' // hoặc phiên bản mới nhất Facebook đang hỗ trợ
+          xfbml            : true,
+          version          : 'v19.0'
         });
       };
 
@@ -79,7 +53,6 @@
         var js, fjs = d.getElementsByTagName(s)[0];
         if (d.getElementById(id)) return;
         js = d.createElement(s); js.id = id;
-        // Ngôn ngữ Việt Nam:
         js.src = "https://connect.facebook.net/vi_VN/sdk/xfbml.customerchat.js";
         fjs.parentNode.insertBefore(js, fjs);
       }(document, 'script', 'facebook-jssdk'));
